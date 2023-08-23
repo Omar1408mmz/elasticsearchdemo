@@ -11,5 +11,5 @@ public class Vehicle {
 
 
     private String id;
-    private String name;
+    private String number;
 }

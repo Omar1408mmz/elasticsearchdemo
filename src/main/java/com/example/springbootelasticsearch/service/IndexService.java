@@ -4,11 +4,13 @@ import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.mapping.TypeMapping;
 import co.elastic.clients.elasticsearch.core.CreateRequest;
 import co.elastic.clients.elasticsearch.indices.CreateIndexRequest;
+import co.elastic.clients.elasticsearch.indices.CreateIndexResponse;
 import co.elastic.clients.elasticsearch.indices.ExistsRequest;
 import co.elastic.clients.elasticsearch.indices.GetIndexRequest;
 import co.elastic.clients.json.JsonpMapper;
 import co.elastic.clients.transport.endpoints.BooleanResponse;
 import co.elastic.clients.util.ObjectBuilder;
+import com.example.springbootelasticsearch.helper.Indices;
 import com.example.springbootelasticsearch.helper.Utility;
 import jakarta.annotation.PostConstruct;
 
@@ -32,51 +34,43 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class IndexService {
-    private final List<String> INDICES_TO_CREATE = List.of("vehicle");
+    private final List<String> INDICES_TO_CREATE = List.of(Indices.VEHICLE_INDEX);
     private final ElasticsearchClient elasticsearchClient;
 
     @PostConstruct
     public void tryToCreateIndices(){
-
-        final String settings = Utility.loadAsString("static/es-settings.json");
-
-        for (final String indexName : INDICES_TO_CREATE) {
-            try {
-                boolean indexExists = elasticsearchClient.indices()
-                        .exists(ExistsRequest.of(builder -> builder.index(indexName))).value();
-                if(indexExists){
-                    continue;
-                }
-                final String  mappings = Utility.loadAsString("static/mappings/" + indexName + ".json");
-                if(settings == null || mappings == null){
-                    log.error("Failed to create index with the name '{}'",indexName);
-                    continue;
-                }
-                JsonpMapper mapper = elasticsearchClient._transport().jsonpMapper();
-                JsonParser parser = mapper.jsonProvider().createParser(new StringReader(mappings));
-
-                elasticsearchClient.indices().create(request->request.index(indexName)
-                                .mappings(TypeMapping._DESERIALIZER.deserialize(parser,mapper)));
-/*                        .mappings(m->m.indexField(builder -> {
-                            try {
-                               return   builder.withJson(new FileInputStream(new ClassPathResource("static/mappings/" + indexName + ".json").getFile()));
-                            } catch (IOException e) {
-                                log.error(e.getMessage(),e);
-                                return null;
-                            }
-                        })).settings(s-> {
-                            try {
-                                return s.withJson(new FileInputStream(new ClassPathResource("static/es-settings.json").getFile()));
-                            } catch (IOException e) {
-                                log.error(e.getMessage(),e);
-                                return null;
-                            }
-                        }));*/
-
-            } catch (IOException e) {
-                log.error(e.getMessage(),e);
-            }
+        recreateIndices(false);
         }
+
+        public void recreateIndices(final boolean deleteExisting){
+            final String settings = Utility.loadAsString("static/es-settings.json");
+
+            for (final String indexName : INDICES_TO_CREATE) {
+                try {
+                    boolean indexExists = elasticsearchClient.indices()
+                            .exists(builder -> builder.index(indexName)).value();
+                    if(indexExists){
+                        if(!deleteExisting){
+                            continue;
+                        }
+                        elasticsearchClient.delete(d-> d.index(indexName));
+                    }
+                    final String  mappings = Utility.loadAsString("static/mappings/" + indexName + ".json");
+                    if(settings == null || mappings == null){
+                        log.error("Failed to create index with the name '{}'",indexName);
+                        continue;
+                    }
+
+                    JsonpMapper mapper = elasticsearchClient._transport().jsonpMapper();
+                    try (JsonParser parser = mapper.jsonProvider().createParser(new StringReader(mappings))){
+
+                        CreateIndexResponse createIndexResponse = elasticsearchClient.indices().create(request -> request.index(indexName)
+                                .mappings(TypeMapping._DESERIALIZER.deserialize(parser, mapper)));
+                    }
+                } catch (IOException e) {
+                    log.error(e.getMessage(),e);
+                }
+            }
         }
 
 }
