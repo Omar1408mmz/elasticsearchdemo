@@ -2,6 +2,7 @@ package com.example.springbootelasticsearch.controller;
 
 import com.example.springbootelasticsearch.document.Person;
 import com.example.springbootelasticsearch.document.Vehicle;
+import com.example.springbootelasticsearch.search.SearchRequestDTO;
 import com.example.springbootelasticsearch.service.VehicleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -23,5 +24,10 @@ public class VehicleController {
     @GetMapping("/{id}")
     public Vehicle getPersonById(@PathVariable final String id) throws IOException {
         return vehicleService.getVehicleById(id);
+    }
+
+    @PostMapping("/search")
+    public void index(@RequestBody final SearchRequestDTO dto) throws IOException {
+        vehicleService.search(dto);
     }
 }
